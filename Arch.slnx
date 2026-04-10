@@ -4,5 +4,6 @@
   </Folder>
   <Project Path="Arch.ConsoleApp\Arch.ConsoleApp.csproj" />
   <Project Path="Arch.EFCore/Arch.EFCore.csproj" />
+  <Project Path="Arch.WebApi.Tests/Arch.WebApi.Tests.csproj" />
   <Project Path="Arch.WebApi/Arch.WebApi.csproj" />
 </Solution>

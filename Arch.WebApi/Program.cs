@@ -10,9 +10,10 @@ var builder = WebApplication.CreateBuilder(args);
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
-builder.Services.AddDbContext<DataContext>(ef =>
+builder.Services.AddDbContext<DataContext>((sp, ef) =>
 {
-    ef.UseSqlite("Data Source=app.db");
+    var connStr = sp.GetRequiredService<IConfiguration>().GetConnectionString("SQLite");
+    ef.UseSqlite(connStr);
 });
 
 var app = builder.Build();
@@ -28,6 +29,8 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
     app.MapScalarApiReference();
 }
+
+app.MapGet("/ping", () => TypedResults.Text("pong"));
 
 app.MapPost("/notes", async (
     [FromBody] NoteBody body, 
@@ -119,7 +122,9 @@ app.MapGet("/notes", async (
     var query = dataContext.Notes.AsQueryable();
     if (string.IsNullOrEmpty(search) is false)
     {
-        query = query.Where(x => EF.Functions.Like(x.Text, $"%{search}%"));
+        query = query.Where(x => EF.Functions.Like(
+            x.Text.ToLower(), 
+            $"%{search.ToLower()}%"));
     }
 
     return await query
