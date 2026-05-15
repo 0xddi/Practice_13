@@ -32,124 +32,112 @@ if (app.Environment.IsDevelopment())
 
 app.MapGet("/ping", () => TypedResults.Text("pong"));
 
-app.MapPost("/notes", async (
-    [FromBody] NoteBody body, 
-    [FromServices] DataContext dataContext,
-    CancellationToken ct) =>
-{
-    var now = DateTimeOffset.UtcNow;
-    var note = new Note
-    {
-        Text = body.Text,
-        CreatedAt = now,
-        UpdatedAt = now
-    };
-    dataContext.Notes.Add(note);
-    await dataContext.SaveChangesAsync(ct);
-
-    return new NoteModel
-    {
-        Id = note.Id,
-        Text = note.Text,
-        CreatedAt = note.CreatedAt,
-        UpdatedAt = note.UpdatedAt
-    };
-});
-app.MapGet("/notes/{id:int}", async Task<Results<NotFound, Ok<NoteModel>>> (
+app.MapGet("/books/{id:int}", async Task<Results<NotFound, Ok<BookModel>>> (
     [FromRoute] int id,
     [FromServices] DataContext dataContext,
     CancellationToken ct) =>
 {
-    var note = await dataContext.Notes.FirstOrDefaultAsync(x => x.Id == id, ct);
-    if (note is null)
+    var book = await dataContext.Books.FirstOrDefaultAsync(book => book.Id == id, ct);
+    if (book == null) return TypedResults.NotFound();
+    return TypedResults.Ok(new BookModel
     {
-        return TypedResults.NotFound();
-    }
-
-    return TypedResults.Ok(new NoteModel
-    {
-        Id = note.Id,
-        Text = note.Text,
-        CreatedAt = note.CreatedAt,
-        UpdatedAt = note.UpdatedAt
+        Id = book.Id,
+        Name = book.Name,
+        Author = book.Author,
+        ReleaseDate = book.ReleaseDate
     });
 });
-app.MapPut("/notes/{id:int}", async Task<Results<NotFound, Ok<NoteModel>>> (
-    [FromRoute] int id,
-    [FromBody] NoteBody body,
+
+app.MapPost("/books", async (
+    [FromBody] BookBody body,
     [FromServices] DataContext dataContext,
     CancellationToken ct) =>
 {
-    var note = await dataContext.Notes.FirstOrDefaultAsync(x => x.Id == id, ct);
-    if (note is null)
+    var book = new Book
     {
-        return TypedResults.NotFound();
-    }
-    
-    note.Text = body.Text;
-    note.UpdatedAt = DateTimeOffset.UtcNow;
+        Name = body.Name,
+        Author = body.Author,
+        ReleaseDate = body.ReleaseDate
+    };
+    dataContext.Books.Add(book);
     await dataContext.SaveChangesAsync(ct);
 
-    return TypedResults.Ok(new NoteModel
+    return new BookModel
     {
-        Id = note.Id,
-        Text = note.Text,
-        CreatedAt = note.CreatedAt,
-        UpdatedAt = note.UpdatedAt
-    });
+        Id =  book.Id,
+        Name = book.Name,
+        Author = book.Author,
+        ReleaseDate = book.ReleaseDate
+    };
 });
-app.MapDelete("/notes/{id:int}", async Task<Results<NotFound, NoContent>> (
-    [FromRoute] int id,
-    DataContext dataContext,
-    CancellationToken ct) =>
-{
-    var note = await dataContext.Notes.FirstOrDefaultAsync(x => x.Id == id, ct);
-    if (note is null)
-    {
-        return TypedResults.NotFound();
-    }
-    
-    dataContext.Notes.Remove(note);
-    await dataContext.SaveChangesAsync(ct);
-    
-    return TypedResults.NoContent();
-});
-app.MapGet("/notes", async (
-    [FromServices] DataContext dataContext,
-    CancellationToken ct,
+
+app.MapGet("/books", async ([FromServices] DataContext dataContext, CancellationToken ct,
     [FromQuery] string? search = null) =>
 {
-    var query = dataContext.Notes.AsQueryable();
+    var query = dataContext.Books.AsQueryable();
     if (string.IsNullOrEmpty(search) is false)
     {
-        query = query.Where(x => EF.Functions.Like(
-            x.Text.ToLower(), 
-            $"%{search.ToLower()}%"));
+        query = query.Where(book => 
+            EF.Functions.Like(book.Name, $"%{search}%") ||
+            EF.Functions.Like(book.Author, $"%{search}%"));
     }
 
-    return await query
-        .Select(x => new NoteModel
-        {
-            Id = x.Id,
-            Text = x.Text,
-            CreatedAt = x.CreatedAt,
-            UpdatedAt = x.UpdatedAt
-        })
-        .OrderByDescending(x => x.Id)
-        .ToListAsync(ct);
-
+    return await query.Select(book => new BookModel
+    {
+        Id = book.Id,
+        Name = book.Name,
+        Author = book.Author,
+        ReleaseDate = book.ReleaseDate
+    }).OrderByDescending(book => book.Id).ToListAsync(ct);
 });
+
+app.MapPut("/books/{id:int}", async Task<Results<NotFound, Ok<BookModel>>> (
+    [FromRoute] int id,
+    [FromBody] BookBody body,
+    [FromServices] DataContext dataContext,
+    CancellationToken ct) =>
+{
+    var book = await dataContext.Books.FirstOrDefaultAsync(book => book.Id == id, ct);
+    if (book == null) return TypedResults.NotFound();
+    book.Name = body.Name;
+    book.Author = body.Author;
+    book.ReleaseDate = body.ReleaseDate;
+    await dataContext.SaveChangesAsync(ct);
+
+    return TypedResults.Ok(new BookModel
+    {
+        Id = book.Id,
+        Name = book.Name,
+        Author = book.Author,
+        ReleaseDate = book.ReleaseDate
+    });
+});
+
+app.MapDelete("/books/{id:int}", async Task<Results<NotFound, NoContent>> (
+        [FromRoute] int id,
+        [FromServices] DataContext dataContext,
+        CancellationToken ct) =>
+    {
+        var book = await dataContext.Books.FirstOrDefaultAsync(book => book.Id == id, ct);
+        if (book == null) return TypedResults.NotFound();
+        dataContext.Books.Remove(book);
+        await dataContext.SaveChangesAsync(ct);
+        return TypedResults.NoContent();
+    }
+);
 
 app.Run();
 
-public record NoteBody
+public record BookBody
 {
-    public required string Text { get; set; }
+    public required string Name { get; set; }
+    public required string Author { get; set; }
+    public required DateOnly? ReleaseDate { get; set; }
 }
 
-public record NoteModel : NoteBody
+public record BookModel : BookBody
 {
     public required int Id { get; set; }
-    public required DateTimeOffset CreatedAt { get; set; }
-    public required DateTimeOffset UpdatedAt { get; set; }
 }
+
+public partial class Program { }
