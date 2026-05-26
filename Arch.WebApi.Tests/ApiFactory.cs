@@ -12,7 +12,10 @@ public class ApiFactory : WebApplicationFactory<Program>
         {
             config.AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["ConnectionStrings:SQLite"] = "Data Source=:memory:"
+                // по идее cache-shared только мешает изоляции тестов, но здесь наоборот
+                // мы каждый раз вручную чистим таблицы через ApiFixture.InitializeAsync()
+                // таким образом "изолируя" все эти тесты; без этого все тесты упадут
+                ["ConnectionStrings:SQLite"] = "Data Source=file::memory:?cache=shared"
             });
         });
         base.ConfigureWebHost(builder);
